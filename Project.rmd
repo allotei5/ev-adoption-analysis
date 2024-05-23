@@ -1,0 +1,1587 @@
+---
+title: "Data Analysis Final Project"
+author: "Hariharasudhan Giridharan, Dharmasurya Arulmozhi, Allotei Pappoe"
+date: "22/3/2024"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## A Abstract
+
+------------------------------------------------------------------------
+
+The adoption of EVs is a key part in the effort of nations such as Canada to address climate change. In order to ensure the growth of this technology continues in an optimal manner, it is necessary to understand where that growth will take place. Adoption of electric vehicles is not expected to be evenly distributed across the population, or across geographic areas. Different people have different transportation needs and capabilities, and this will determine whether they will consider the use of an electric vehicle. Factors such as income, employment field, housing, education, commuting patterns, personal characteristics and access to charging infrastructure may all affect this choice. We seek to understand how these factors affect the adoption of EVs. Our ultimate goal is to compare different models that perform well on our dataset and eventually use the census profile data from different provinces to predict the total presence of electric vehicles. We are aiming to train our data from the Ontario’s census data initially.
+
+
+## B Keywords
+
+------------------------------------------------------------------------
+
+Generalized Linear models, Electric Vehicle Adoption, Forward Sortation Area (FSA), Random Forests.
+
+
+
+## C Introduction
+
+------------------------------------------------------------------------
+
+
+The Electric Vehicle (EV) market in Canada is booming. By September 2023, out of 1,286,951 registered vehicles, 132,783 were electric. This growth aligns with Canada's climate goals, aiming to phase out gas vehicles by 2035 and have EVs make up 20% of sales by 2026. Regulations are driving investment in EV infrastructure. From 2017 to 2021, EV registrations surged from under 20,000 to over 86,000, with 7.7% of all vehicles registered as electric by early 2022. Consumer interest is high, with 71% considering an EV for their next purchase, demanding a minimum range of 400 kilometers per charge (Cousin, 2023; Blair, 2024).
+
+The transition towards electric vehicles (EVs) presents a crucial step in addressing environmental concerns and promoting sustainable transportation. Organizations and businesses are increasingly interested in understanding and predicting EV adoption patterns. This interest stems from the need to develop effective policies and strategies that encourage EV usage and to anticipate the infrastructural demands associated with a growing EV market. Recent studies have shown that various demographic, technical, economic, and behavioral factors significantly influence EV adoption. For instance, (Egbue et al., 2017) highlighted the importance of demographic determinants and behavioral attitudes in influencing individual adoption decisions (Egbue et al., 2017). Similarly, (Chen et al., 2020) emphasized the interconnected influence of socio-demographics and behavioral factors on EV adoption interest (Chen et al., 2020).
+
+
+## D Data Description
+
+------------------------------------------------------------------------
+
+To make predictions regarding uptake of electric vehicles in different regions within Ontario on the basis of population characteristics, we require data regarding use and/or ownership of EVs, divided by region, and a variety of demographic figures for these same regions. The Ontario Ministry of Transportation makes data available regarding the number of registered EVs in the province divided by Forward Sortation Area (FSA), i.e., the first three digits in an area’s postal code. This dataset contains only four columns.
+
+\begin{table}[!ht]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Variable Name} & \textbf{Type} & \textbf{Description} \\
+\hline
+FSA & Categorical/Identifier (text) & Identifies the individual areas (instances) \\
+PHEV & Continuous (numeric) & Hybrid EVs registered in the area \\
+BEV & Continuous (numeric) & Battery-powered EVs registered in the area \\
+TotalEV & Continuous (numeric) & Total EVs registered in the area \\
+\hline
+\end{tabular}
+\caption{Variables in Electric Vehicles in Ontario - By Forward Sortation Area dataset}
+\label{table:ev_ontario}
+\end{table}
+
+The FSA column identifies the individual areas for which we will make our predictions. The TotalEV column will serve as the basis for our target variable; however, this is the raw number of registrations in an area, which may depend on population size. This dataset contains 550 instances, each representing a distinct geographic area. Some registrations may be tied to FSAs that represent areas without a residential population, and will be removed from consideration.  
+
+Statistics Canada provides detailed information on many aspects of the Canadian populace, including the domain concepts listed above. We downloaded the CSV-formatted version of the 2021 Census Profile data, organized by FSA, corresponding to the areas listed in the EV dataset. This dataset contains data on all 1646 FSAs in Canada, including 521 within Ontario. 
+
+Each row in this dataset corresponds to a “characteristic” of an area, with columns representing metadata, total counts, and breakdowns by gender. The CSV contains 23 columns, however only five are of any interest to us.
+
+
+\begin{table}[!ht]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Variable Name} & \textbf{Type} & \textbf{Description} \\
+\hline
+GEO\_NAME & Categorical/Identifier (text) & Equivalent to FSA \\
+CHARACTERISTIC\_ID & -- & Identifies the variable/characteristic \\
+CHARACTERISTIC\_NAME & -- & Identifies the variable/characteristic \\
+C1\_COUNT\_TOTAL & Continuous (numeric) & Provides the raw data for most features \\
+C2\_COUNT\_MEN+ & Continuous (numeric) & Provides the raw data for the “num\_males” feature \\
+\hline
+\end{tabular}
+\caption{Variables in Dataset}
+\label{table:variables_dataset}
+\end{table}
+
+
+There are 2,631 characteristics (rows) for each FSA, resulting in 1,370,751 total rows of interest. We selected 143 characteristics, corresponding to the domains we identified as possibly yielding features from which EV ownership/registration may be predicted, as well as those necessary to normalize other values. After selecting these, the table was transposed to a format with one row per FSA, and each column representing a selected feature. 
+
+The EV and Census Profile datasets were joined on the FSA identifiers, resulting in 517 observations (FSAs present in both data sets) with 147 columns. Four FSAs with very small or no populations were removed. Statistics referring to counts of individual people were divided by the overall population of the area, while those referring to counts of dwellings (homes) were divided by the number of dwellings in the area. The number of registered EVs were divided by the population and multiplied by 10,000 to yield the number of registered EVs per 10,000 people. 
+
+As the TotalEV number represents only the number of registered vehicles at a particular moment in time, and it is generally expected not only that this number will increase, but that the overall adoption rate will increase, rather than attempting to predict this number via regression, we decided to use it as the basis for a new categorical variable, TotalEV_Category. This variable will divide our dataset into areas of Low, Medium, or High EV adoption, based on analysis below. 
+
+After assembling our data and normalizing it over the population, we ran a simple correlation check between the possible features and the (normalized) TotalEV value. We selected 26 features from across multiple domains with the highest correlations (positive or negative) in their categories. Note that only “med_fulltime_income” would qualify as being particularly high, but other features may still contribute in some ways. 
+
+The source data is relatively high-quality, and requires little in the way of cleaning, beyond the normalization we have already done. Missing values only appear to exist for those regions with very small populations; we have removed four FSAs from consideration as a result. 
+
+The data scheme is represented as follows:
+
+![Data Flow pipeline](data.png)
+
+
+
+The final dataset after binning similar features from correaltion matrix is as follows:
+
+\begin{table}[!ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Variable} & \textbf{Explanation} \\
+\hline
+med\_fulltime\_income & Median income of full-time employees in the FSA \\
+income\_100k\_up & Number of people with income over \$100k in the FSA \\
+med\_total\_household\_income & Median total household income in the FSA \\
+income\_40k & Number of people with income over \$40k in the FSA \\
+occup\_cat\_snr\_mgmt & Number of people in senior management occupations in the FSA \\
+occup\_cat\_busfin & Number of people in business and finance occupations in the FSA \\
+occup\_ind\_realestate & Number of people in the real estate industry in the FSA \\
+work\_loc\_home & Number of people who work from home in the FSA \\
+work\_loc\_workplace & Number of people who work at a workplace (not from home) in the FSA \\
+work\_loc\_notfixed & Number of people with non-fixed work locations in the FSA \\
+school\_uni\_degree & Number of people with a university degree in the FSA \\
+school\_hs & Number of people with a high school diploma in the FSA \\
+commute\_start\_noon & Number of people who start their commute at noon in the FSA \\
+edu\_field\_science & Number of people with education in science fields in the FSA \\
+edu\_field\_bus\_admin & Number of people with education in business administration in the FSA \\
+edu\_field\_health & Number of people with education in health fields in the FSA \\
+edu\_field\_pers\_protect\_transp & Number of people with education in personal protection or transportation in the FSA \\
+commute\_transp\_carpass & Number of people who commute as car passengers in the FSA \\
+commute\_start\_6am & Number of people who start their commute at 6 AM in the FSA \\
+commute\_start\_9am & Number of people who start their commute at 9 AM in the FSA \\
+condo & Number of condominium units in the FSA \\
+worktype\_selfemp & Number of self-employed individuals in the FSA \\
+indigenous\_ppl & Number of indigenous people in the FSA \\
+married\_ppl & Number of married people in the FSA \\
+work\_loc\_foreign & Number of people who work at foreign locations in the FSA \\
+can\_citizen\_ppl & Number of Canadian citizens in the FSA \\
+non\_citizen\_ppl & Number of non-citizens in the FSA \\
+\hline
+\end{tabular}
+\caption{Explanation of Variables in the Forward Sortation Area (FSA)}
+\label{tab:variables}
+\end{table}
+
+
+## Research Questions
+
+
+RQ1. How does the demographics of a Forward Sortation Area affect the TotalEV’s count?
+
+RQ2. Across Ontario, what is the effect of the count of charging stations for electric vehicles on the count of electric vehicles? Are there any FSAs which are hotspots or coldspots for electric vehicles?
+
+RQ3. Can tree based methods be used to predict TotalEvs based on demographical variables? Per tree based models, what demographical variables are the most important in predicting TotalEVs?
+
+## Report Organization
+
+------------------------------------------------------------------------
+
+The subsequent sections of this report are organized as the following sections: E) A methods section that will describe exploratory data analysis, briefly outline models used that were already covered in class material, and review in more detail approaches specific to this project or not discussed extensively in class. F) An analysis section consisting of R code for producing the visualization and model fits outlined in Methods with concise commenting. G) A Results section that serves as a results and discussion of the main finding and their warranted interpretations relevant to informative insights about the research questions.
+
+
+## E Methods
+
+------------------------------------------------------------------------
+
+We carried out exploratory data analysis (EDA) that included scatter plots for all variables and visualizations of response variables across various combinations of potentially confounding explanatory effects, which we will refer to as influence scenarios. The aim of this EDA was to identify the distributions of responses and the correlation structures present in the data, which could be categorized by significant scenarios. These results informed our decisions regarding the selection of appropriate models. Additionally, we examined summary statistics for the explanatory variables, paying special attention to missing values.
+
+To address the first research question, we began by performing data normalization as previously described. We plotted a histogram to determine if the response variable exhibited a normal distribution. Based on the results obtained, we attempted to fit a Generalized Linear Model (GLM) to our dataset and further expand our research based on it. Considering the skewness of the response variable, we initially fitted the model with a Poisson distribution and then built upon it using quasi-Poisson and negative binomial distributions. We plotted the model's residual plots in three different ways and concluded that the negative binomial distribution provided the best fit among the three distributions, a realization also supported by the Akaike Information Criterion (AIC). Subsequently, we utilized the Incidence Rate Ratio (IRR) to identify the top five demographic features that play a significant role in the total electric vehicle count.
+
+For the second research question, our study aims to assess the effect of the availability of electric vehicle (EV) charging stations on the adoption of electric vehicles across Ontario. Furthermore, it seeks to identify spatial hotspots and coldspots for EVs within the province.
+With the aforementioned datasets, for this question we wrangled and combined the count of EVs and EV charging stations for each forward sortation area (FSA) in Ontario ensuring a consistent spatial framework for analysis. This resulted in a dataset featuring FSAs, counts of total EVs and counts of EV charging stations.   
+We conducted EDA to understand the distribution, mean and variance of the counts of EV and charging stations across Ontario. Spatial distributions of both EVs and charging stations were then visualised using maps of Ontario. This was done to help in identifying preliminary patterns, such as areas with high concentrations of EVs and or charging stations.  
+For statistical modelling, we examined the distribution of the counts of EVs to determine the most appropriate model to use. Based on the distribution identified, a GLM with Poisson family of distribution was initially fitted to analyse the relationship between the count of EV charging stations and the count of EVs. After careful analysis of the data and running overdispersion tests, we realized the variance is far greater than the mean of the data. A Negative Binomial GLM proved to be a better fit for the data. We then analysed the diagnostic plots and performed residual checking to ensure the chosen model was a right fit. We then interpreted the coefficients of the fitted model to understand the effect of EV charging stations on the adoption of electric vehicles.  
+For the hotspot analysis, we used spatial statistical methods to identify FSAs that are hotspots and coldspots (areas with significantly high counts of EVs).  
+
+For our third question, we aimed to evaluate the efficacy of tree-based models (including Decision Trees, Random Forests, and Gradient Boosting Machines) in predicting TotalEVs from demographic variables and to identify which demographic variables are the most influential in predicting the presence of TotalEVs, thereby providing insights into factors driving EV adoption. The methodology for assessing the potential of tree-based methods to predict TotalEVs based on demographic variables incorporates a comprehensive approach that leverages Decision Trees, Random Forests, and Gradient Boosting Machines (XGBoost). These models are chosen for their ability to handle complex, nonlinear relationships between a large number of predictor variables and the outcome, making them ideal for this research question. 
+
+
+
+
+## F Analysis
+
+------------------------------------------------------------------------
+
+The code described has been utilized for the necessary data normalization process. We have employed the Census dataset to examine the demographics, select specific features, and reformat these features into a columnar structure. Specifically, we selected the Census dataset from the Stats Canada Ontario website to analyze the total count of electric vehicles (EVs) based on the demographics provided in the Census dataset. The objective of this project is to amalgamate these two datasets by linking them through the Forward Sortation Area (FSA) and integrating their data. To achieve this, it was essential to extract the relevant features from the extensive dataset. Although the dataset contains a vast array of features, we determined that many were superfluous and thus, only included the necessary features. The approach to normalization we adopted is somewhat intuitive, aiming to mitigate the bias attributed to population size in the total count of electric vehicles (the dependent variable). It's evident that a higher population in a specific FSA is likely to correspond to a higher number of EVs in that area. Therefore, we normalized the features (excluding income features) by dividing the population count for each feature by the total population in that FSA, per 10,000 individuals.
+
+
+```{r normalize}
+# Re-organize census data
+
+# library(tidyverse)
+# 
+# setwd("~/Documents/School/CSCI6409/Project")
+# 
+# data = read.csv("Data/Census\ Profile/98-401-X2021013_English_CSV_data.csv")
+# 
+# data <- data %>%
+#   filter(substr(GEO_NAME, 1, 1) %in% list('K','L','M','N','P')) %>%
+#   select(-CENSUS_YEAR, -DGUID, -ALT_GEO_CODE, -GEO_LEVEL, -TNR_SF, -TNR_LF, -DATA_QUALITY_FLAG, -CHARACTERISTIC_NOTE, 
+#          -SYMBOL, -SYMBOL.1, -SYMBOL.2, -SYMBOL.3, -SYMBOL.4, -SYMBOL.5) %>%
+#   filter(CHARACTERISTIC_ID %in% list(1,4,6,7,8,16,17,18,19,20,21,22,23,24,39,40,
+#                                      42,43,44,45,46,47,48,49,57,59,66,128,130,143,144,
+#                                      156,158,159,160,161,162,163,164,165,166,167,168,
+#                                      243,244,1403,1410,1415,1416,1417,1419,1420,1433,
+#                                      1466,1467,1523,1526,1528,1529,1537,1975,1976,1984,1985,
+#                                      2015,2016,2018,2024,2095,2097,2100,2109,2117,2121,2127,2132,2140,2143,
+#                                      2149,2155,2228,2229,2230,2232,2233,2234,2235,2236,2240,2245,
+#                                      2249,2250,2251,2252,2253,2254,2255,2256,2257,2258,
+#                                      2262,2263,2264,2265,2266,2267,2268,2269,2270,
+#                                      2271,2272,2273,2274,2275,2276,2277,2278,2279,2280,2281,
+#                                      2594,2595,2596,2597,
+#                                      2599,2600,2601,2602,
+#                                      2605,2606,2607,2608,2609,2610,
+#                                      2612,2613,2614,2615,2616,
+#                                      2618,2619,2620,2621,2622,2623)) %>%
+#   mutate(value = ifelse(CHARACTERISTIC_ID==8, C2_COUNT_MEN., C1_COUNT_TOTAL)) %>%
+#   select(GEO_NAME, CHARACTERISTIC_ID, CHARACTERISTIC_NAME, value)
+# 
+# field_names = tibble(
+#   CHARACTERISTIC_ID = c(1,4,6,7,8,16,17,18,19,20,21,22,23,24,39,40,
+#                            42,43,44,45,46,47,48,49,57,59,66,128,130,143,144,
+#                            156,158,159,160,161,162,163,164,165,166,167,168,
+#                            243,244,1403,1410,1415,1416,1417,1419,1420,1433,
+#                            1466,1467,1523,1526,1528,1529,1537,1975,1976,1984,1985,
+#                            2015,2016,2018,2024,2095,2097,2100,2109,2117,2121,2127,2132,2140,2143,
+#                            2149,2155,2228,2229,2230,2232,2233,2234,2235,2236,2240,2245,
+#                            2249,2250,2251,2252,2253,2254,2255,2256,2257,2258,
+#                            2262,2263,2264,2265,2266,2267,2268,2269,2270,
+#                            2271,2272,2273,2274,2275,2276,2277,2278,2279,2280,2281,
+#                            2594,2595,2596,2597,
+#                            2599,2600,2601,2602,
+#                            2605,2606,2607,2608,2609,2610,
+#                            2612,2613,2614,2615,2616,
+#                            2618,2619,2620,2621,2622,2623),
+#   char_col_name = c("total_pop","total_dwellings","pop_density","land_area","num_male",
+#                        "age_25","age_30","age_35","age_40","age_45","age_50","age_55","age_60","age_65_up","age_mean","age_med",
+#                        "homes_detached_house","homes_semidetached_house","homes_rowhouse","homes_duplex_apt","homes_lowrise_apt",
+#                        "homes_highrise_apt","homes_other_stationary","homes_mobile",
+#                        "avg_ppl_household","married_ppl","single_ppl",
+#                        "avg_total_income","avg_aftertax_income","med_fulltime_income","avg_fulltime_income",
+#                        "income_none","income_under_10k","income_10k","income_20k","income_30k","income_40k","income_50k","income_60k",
+#                        "income_70k","income_80k","income_90k","income_100k_up",
+#                        "med_total_household_income","med_aftertax_household_income",
+#                        "indigenous_ppl","nonindigenous_ppl",
+#                        "home_owner","home_renter","home_gov_or_ind_band",
+#                        "condo","non_condo","avg_rooms_home",
+#                        "home_cost_under_30pct","home_cost_over_30pct",
+#                        "can_citizen_ppl","non_citizen_ppl",
+#                        "non_immigrant_ppl","immigrant_ppl","non_perm_res_ppl",
+#                        "no_move_last_yr","moved_last_yr","no_move_5yrs","moved_last_5yrs",
+#                        "school_no_hs","school_hs","school_college","school_uni_degree",
+#                        "edu_field_education","edu_field_arts_comms","edu_field_humanities","edu_field_socsci_law","edu_field_bus_admin",
+#                        "edu_field_science","edu_field_math_cs","edu_field_engin_arch","edu_field_agri_res_env","edu_field_health",
+#                        "edu_field_pers_protect_transp","edu_field_other",
+#                        "workforce_participation_rate","workforce_employment_rate","workforce_unemployment_rate",
+#                        "work_lastyear_didnotwork","work_lastyear_worked","work_lastyear_fulltime","work_lastyear_parttime","work_lastyear_avg_weeks",
+#                        "worktype_employee","worktype_selfemp",
+#                        "occup_cat_snr_mgmt","occup_cat_busfin","occup_cat_science","occup_cat_health","occup_cat_edu_law_socserv","occup_cat_arts_rec",
+#                        "occup_cat_sales_serv","occup_cat_trades_transp","occup_cat_natres_agr","occup_cat_manuf_util",
+#                        "occup_ind_agr_forest","occup_ind_mine_og","occup_ind_util","occup_ind_constr","occup_ind_manuf","occup_ind_wholesale_trd",
+#                        "occup_ind_retail_trd","occup_ind_transp_warehs","occup_ind_info_culture","occup_ind_fin_insure","occup_ind_realestate",
+#                        "occup_ind_prof_sci_tech_serv","occup_ind_mgmt","occup_ind_admsupport_wastemgmt","occup_ind_edu","occup_ind_health_socasst",
+#                        "occup_ind_arts_ent_rec","occup_ind_accom_food_svc","occup_ind_other","occup_ind_pubadmin",
+#                        "work_loc_home","work_loc_foreign","work_loc_notfixed","work_loc_workplace",
+#                        "commute_same_subdiv","commute_same_div","commute_same_prov","commute_diff_prov",
+#                        "commute_transp_cardriver","commute_transp_carpass","commute_transp_pubtrans","commute_transp_walk",
+#                        "commute_transp_bike","commute_transp_other",
+#                        "commute_time_under15","commute_time_15","commute_time_30","commute_time_45","commute_time_over60",
+#                        "commute_start_5am","commute_start_6am","commute_start_7am","commute_start_8am","commute_start_9am","commute_start_noon")
+# )
+# 
+# new_data <- inner_join(data, field_names, by='CHARACTERISTIC_ID') %>%
+#   select(GEO_NAME, char_col_name, value) %>%
+#   pivot_wider(id_cols = GEO_NAME, names_from = char_col_name, values_from = value)
+# 
+# 
+# ev_data = read.csv("Data/ontario_evs_by_fsa_2023-03-31.csv")
+# 
+# new_data <- inner_join(new_data, ev_data, by=join_by(GEO_NAME==FSA))
+# 
+# new_data <- mutate(new_data,
+#   num_male = num_male/total_pop,
+#   
+#   age_25 = age_25/total_pop,
+#   age_30 = age_30/total_pop,
+#   age_35 = age_35/total_pop,
+#   age_40 = age_40/total_pop,
+#   age_45 = age_45/total_pop,
+#   age_50 = age_50/total_pop,
+#   age_55 = age_55/total_pop,
+#   age_60 = age_60/total_pop,
+#   age_65_up = age_65_up/total_pop,
+#   
+#   homes_detached_house = homes_detached_house/total_dwellings,
+#   homes_semidetached_house = homes_semidetached_house/total_dwellings,
+#   homes_rowhouse = homes_rowhouse/total_dwellings,
+#   homes_duplex_apt = homes_duplex_apt/total_dwellings,
+#   homes_lowrise_apt = homes_lowrise_apt/total_dwellings,
+#   
+#   homes_highrise_apt = homes_highrise_apt/total_dwellings,
+#   homes_other_stationary = homes_other_stationary/total_dwellings,
+#   homes_mobile = homes_mobile/total_dwellings,
+#   
+#   married_ppl = married_ppl/total_pop,
+#   single_ppl = single_ppl/total_pop,
+#   
+#   income_none = income_none/total_pop,
+#   income_under_10k = income_under_10k/total_pop,
+#   income_10k = income_10k/total_pop,
+#   income_20k = income_20k/total_pop,
+#   income_30k = income_30k/total_pop,
+#   income_40k = income_40k/total_pop,
+#   income_50k = income_50k/total_pop,
+#   income_60k = income_60k/total_pop,
+#   income_70k = income_70k/total_pop,
+#   income_80k = income_80k/total_pop,
+#   income_90k = income_90k/total_pop,
+#   income_100k_up = income_100k_up/total_pop,
+#   
+#   indigenous_ppl = indigenous_ppl/total_pop,
+#   nonindigenous_ppl = nonindigenous_ppl/total_pop,
+#   
+#   home_owner = home_owner/total_pop,
+#   home_renter = home_renter/total_pop,
+#   home_gov_or_ind_band = home_gov_or_ind_band/total_pop,
+#   
+#   condo = condo/total_dwellings,
+#   non_condo = non_condo/total_dwellings,
+#   
+#   home_cost_under_30pct = home_cost_under_30pct/total_pop,
+#   home_cost_over_30pct = home_cost_over_30pct/total_pop,
+#   
+#   can_citizen_ppl = can_citizen_ppl/total_pop,
+#   non_citizen_ppl = non_citizen_ppl/total_pop,
+#   non_immigrant_ppl = non_immigrant_ppl/total_pop,
+#   immigrant_ppl = immigrant_ppl/total_pop,
+#   non_perm_res_ppl = non_perm_res_ppl/total_pop,
+#   
+#   no_move_last_yr = no_move_last_yr/total_pop,
+#   moved_last_yr = moved_last_yr/total_pop,
+#   no_move_5yrs = no_move_5yrs/total_pop,
+#   moved_last_5yrs = moved_last_5yrs/total_pop,
+#   
+#   school_no_hs = school_no_hs/total_pop,
+#   school_hs = school_hs/total_pop,
+#   school_college = school_college/total_pop,
+#   school_uni_degree = school_uni_degree/total_pop,
+#   
+#   edu_field_education = edu_field_education/total_pop,
+#   edu_field_arts_comms = edu_field_arts_comms/total_pop,
+#   edu_field_humanities = edu_field_humanities/total_pop,
+#   edu_field_socsci_law = edu_field_socsci_law/total_pop,
+#   edu_field_bus_admin = edu_field_bus_admin/total_pop,
+#   edu_field_science = edu_field_science/total_pop,
+#   edu_field_math_cs = edu_field_math_cs/total_pop,
+#   edu_field_engin_arch = edu_field_engin_arch/total_pop,
+#   edu_field_agri_res_env = edu_field_agri_res_env/total_pop,
+#   edu_field_health = edu_field_health/total_pop,
+#   edu_field_pers_protect_transp = edu_field_pers_protect_transp/total_pop,
+#   edu_field_other = edu_field_other/total_pop,
+#   
+#   work_lastyear_didnotwork = work_lastyear_didnotwork/total_pop,
+#   work_lastyear_worked = work_lastyear_worked/total_pop,
+#   work_lastyear_fulltime = work_lastyear_fulltime/total_pop,
+#   work_lastyear_parttime = work_lastyear_parttime/total_pop,
+#   work_lastyear_avg_weeks = work_lastyear_avg_weeks/total_pop,
+#   
+#   worktype_employee = worktype_employee/total_pop,
+#   worktype_selfemp = worktype_selfemp/total_pop,
+#   
+#   occup_cat_snr_mgmt = occup_cat_snr_mgmt/total_pop,
+#   occup_cat_busfin = occup_cat_busfin/total_pop,
+#   occup_cat_science = occup_cat_science/total_pop,
+#   occup_cat_health = occup_cat_health/total_pop,
+#   occup_cat_edu_law_socserv = occup_cat_edu_law_socserv/total_pop,
+#   occup_cat_arts_rec = occup_cat_arts_rec/total_pop,
+#   occup_cat_sales_serv = occup_cat_sales_serv/total_pop,
+#   occup_cat_trades_transp = occup_cat_trades_transp/total_pop,
+#   occup_cat_natres_agr = occup_cat_natres_agr/total_pop,
+#   occup_cat_manuf_util = occup_cat_manuf_util/total_pop,
+#   
+#   occup_ind_agr_forest = occup_ind_agr_forest/total_pop,
+#   occup_ind_mine_og = occup_ind_mine_og/total_pop,
+#   occup_ind_util = occup_ind_util/total_pop,
+#   occup_ind_constr = occup_ind_constr/total_pop,
+#   occup_ind_manuf = occup_ind_manuf/total_pop,
+#   occup_ind_wholesale_trd = occup_ind_wholesale_trd/total_pop,
+#   occup_ind_retail_trd = occup_ind_retail_trd/total_pop,
+#   occup_ind_transp_warehs = occup_ind_transp_warehs/total_pop,
+#   occup_ind_info_culture = occup_ind_info_culture/total_pop,
+#   occup_ind_fin_insure = occup_ind_fin_insure/total_pop,
+#   occup_ind_realestate = occup_ind_realestate/total_pop,
+#   occup_ind_prof_sci_tech_serv = occup_ind_prof_sci_tech_serv/total_pop,
+#   occup_ind_mgmt = occup_ind_mgmt/total_pop,
+#   occup_ind_admsupport_wastemgmt = occup_ind_admsupport_wastemgmt/total_pop,
+#   occup_ind_edu = occup_ind_edu/total_pop,
+#   occup_ind_health_socasst = occup_ind_health_socasst/total_pop,
+#   occup_ind_arts_ent_rec = occup_ind_arts_ent_rec/total_pop,
+#   occup_ind_accom_food_svc = occup_ind_accom_food_svc/total_pop,
+#   occup_ind_other = occup_ind_other/total_pop,
+#   occup_ind_pubadmin = occup_ind_pubadmin/total_pop,
+#   
+#   work_loc_home = work_loc_home/total_pop,
+#   work_loc_foreign = work_loc_foreign/total_pop,
+#   work_loc_notfixed = work_loc_notfixed/total_pop,
+#   work_loc_workplace = work_loc_workplace/total_pop,
+#   
+#   commute_same_subdiv = commute_same_subdiv/total_pop,
+#   commute_same_div = commute_same_div/total_pop,
+#   commute_same_prov = commute_same_prov/total_pop,
+#   commute_diff_prov = commute_diff_prov/total_pop,
+#   
+#   commute_transp_cardriver = commute_transp_cardriver/total_pop,
+#   commute_transp_carpass = commute_transp_carpass/total_pop,
+#   commute_transp_pubtrans = commute_transp_pubtrans/total_pop,
+#   commute_transp_walk = commute_transp_walk/total_pop,
+#   
+#   commute_transp_bike = commute_transp_bike/total_pop,
+#   commute_transp_other = commute_transp_other/total_pop,
+#   
+#   commute_time_under15 = commute_time_under15/total_pop,
+#   commute_time_15 = commute_time_15/total_pop,
+#   commute_time_30 = commute_time_30/total_pop,
+#   commute_time_45 = commute_time_45/total_pop,
+#   commute_time_over60 = commute_time_over60/total_pop,
+#   
+#   commute_start_5am = commute_start_5am/total_pop,
+#   commute_start_6am = commute_start_6am/total_pop,
+#   commute_start_7am = commute_start_7am/total_pop,
+#   commute_start_8am = commute_start_8am/total_pop,
+#   commute_start_9am = commute_start_9am/total_pop,
+#   commute_start_noon = commute_start_noon/total_pop,
+#   BEV = (BEV/total_pop)*10000,
+#   PHEV = (PHEV/total_pop)*10000,
+#   TotalEV = (TotalEV/total_pop)*10000
+# )
+# 
+# write.csv(new_data, "Data/fulldata_norm.csv")
+```
+
+
+### EDA and Visualizations:
+
+We will load the necessary libraries and the dataset for the initialization of the analysis.
+
+```{r visualization}
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(caret)
+library(e1071)
+library(randomForest)
+library(corrplot)
+library(mgcv)
+library(tidyverse)
+library(ggplot2)
+
+# Reading the data
+data <- read.csv("data.csv")
+
+# View the first 15 rows
+head(data, 15)
+
+# Getting information about the dataframe
+str(data)
+```
+We will now perform Missing Value analysis on the dataset. 
+
+```{r missingvalues}
+
+# Checking for rows with any missing values
+#data[complete.cases(data), ]
+
+# Subset the dataframe to include only rows with at least one NA value
+rows_with_na <- data[apply(is.na(data), 1, any), ]
+
+# View rows with NA values
+print(rows_with_na)
+
+# Dropping rows by index
+data <- data[-c(11, 159, 176, 177), ]
+```
+
+Upon analyzing the dataset rows, it becomes apparent that many values are missing and that the total number of electric vehicles is comparatively very high, classifying them as outliers. Consequently, we will proceed with their removal.
+
+```{r missingval}
+# Subset the dataframe to include only rows with at least one NA value
+rows_with_na <- data[apply(is.na(data), 1, any), ]
+
+# View rows with NA values
+print(rows_with_na)
+
+
+# Checking for NA values
+colSums(is.na(data))
+```
+We hereby confirm that there are no missing values in all the represented features. 
+
+*Descriptive Statistics*
+
+```{r descstats}
+build_continuous_features_report <- function(data_df) {
+  # Selecting continuous (numeric) features
+  continuous_data_df <- data_df[sapply(data_df, is.numeric)]
+  
+  # Function to calculate statistics for a single column
+  stats <- function(df) {
+    data.frame(
+      "Count" = length(df),
+      "Miss %" = sum(is.na(df)) / length(df) * 100,
+      "Card." = length(unique(na.omit(df))),
+      "Min" = min(df, na.rm = TRUE),
+      "1st Qrt." = quantile(df, 0.25, na.rm = TRUE),
+      "Mean" = mean(df, na.rm = TRUE),
+      "Median" = median(df, na.rm = TRUE),
+      "3rd Qrt" = quantile(df, 0.75, na.rm = TRUE),
+      "Max" = max(df, na.rm = TRUE),
+      "Std. Dev." = sd(df, na.rm = TRUE)
+    )
+  }
+  
+  # Initializing an empty list to store the statistics of each feature
+  report_list <- list()
+  
+  # Looping through each continuous feature to calculate the statistics
+  for(feature in names(continuous_data_df)) {
+    feature_data <- continuous_data_df[[feature]]
+    report_list[[feature]] <- t(stats(feature_data)) # Transpose for correct orientation
+  }
+  
+  # Combining the individual feature reports into a single dataframe
+  report_df <- do.call(cbind, report_list)
+  colnames(report_df) <- names(continuous_data_df)
+  
+  return(t(report_df)) # Transpose to match desired output format
+}
+
+# Example of how to use the function with a dataframe `data`
+result <- build_continuous_features_report(data)
+print(result)
+
+```
+
+1. **Data Completeness**: For most of the variables, the count is 514, indicating that the dataset is relatively complete with few missing values (denoted by "Miss" column). However, some variables do have missing data (e.g., 'occup_ind_realestate', 'school_hs', 'commute_transp_carpass', and a few others).
+
+2. **Income Distribution**: The `med_fulltime_income` has a mean of around $63,819 with a median of $65,500, which suggests a somewhat symmetrical distribution around the median income but there are also high-income earners as evidenced by a maximum value of around $118,000. The standard deviation is quite large, indicating a wide spread in full-time income.
+
+3. **High Income Earners**: The `income_100k_up` variable suggests that about 1.27% of the observations represent people earning above $100,000, as its mean is close to 0.012731, which matches the proportion since the variable likely indicates a binary (0 or 1) for individuals in this income bracket.
+
+4. **Housing**: The `condo` variable suggests that approximately 2% of the observations are associated with condominiums. The nature of the variable is not clear, but if it's binary, it may indicate whether the person lives in a condo or not.
+
+5. **Education**: A small percentage (around 1.98%) have a university degree (`school_uni_degree`), while a slightly smaller percentage have completed high school (`school_hs`).
+
+6. **Occupation**: There's a very small percentage of people in senior management (`occup_cat_snr_mgmt`) and business finance (`occup_cat_busfin`). The `occup_ind_realestate` might indicate those involved in real estate, which is also a small portion of the population.
+
+7. **Work Location**: A fair number of people work from home (`work_loc_home`), as indicated by a mean of around 0.06.
+
+8. **Commute Times**: Few people start their commute at noon or at 6 am (`commute_start_noon`, `commute_start_6am`), as these values are close to zero.
+
+9. **Diversity**: The variables `indigenous_ppl`, `married_ppl`, `worktype_selfemp`, and `non_citizen_ppl` likely indicate proportions or counts of these demographics within the dataset.
+
+10. **TotalEV**: It's unclear what this variable represents as it's not labeled like the others, but it has a mean of around 4.32 and a very high standard deviation of 56.42, indicating a very wide distribution or range of values.
+
+*Categorical Feature Report:*
+
+```{r categorical}
+
+describe_categorical <- function(df) {
+  # Identify non-numeric (categorical and character) columns
+  cat_cols <- df[sapply(df, function(column) !is.numeric(column))]
+  
+  # Initialize a list to store summaries
+  summaries <- list()
+  
+  # Loop through each categorical column to calculate summary statistics
+  for (col_name in names(cat_cols)) {
+    col_data <- na.omit(cat_cols[[col_name]])  # Remove NAs for accurate calculations
+    
+    # Calculate summary statistics
+    summary_stats <- list(
+      "Count" = length(col_data),
+      "Unique" = length(unique(col_data)),
+      "Top" = names(sort(table(col_data), decreasing = TRUE)[1]),
+      "Freq" = sort(table(col_data), decreasing = TRUE)[[1]]
+    )
+    
+    # Add summary statistics to the list
+    summaries[[col_name]] <- summary_stats
+  }
+  
+  # Convert the list of summaries into a readable format, e.g., a data frame
+  summary_df <- do.call(rbind, lapply(summaries, function(x) do.call(cbind, x)))
+  rownames(summary_df) <- names(summaries)
+  
+  return(summary_df)
+}
+
+# Example usage with a dataframe 'df'
+summary_df <- describe_categorical(data)
+print(summary_df)
+```
+
+This is a summary report of categorical features from a dataframe. It shows two categorical columns: 'FSA' and 'TotalEV_Category'. For 'FSA', there are 514 unique categories (Cardinality), with the most frequent category (Mode) occurring 514 times, indicating all entries might be unique. For 'TotalEV_Category', there are 514 counts with 3 unique categories, the most common being 'Medium' with a frequency of 202, and the second most common 'Low' with a frequency of 183.
+
+Before proceeding with further modelling and analysis, it is important to note the trends followed by the response variable.
+
+```{r responsevar}
+ggplot(data, aes(x = TotalEV)) +
+  geom_histogram(aes(y = ..density..), binwidth = diff(range(data$TotalEV)) / 10, color = "black", fill = "blue") +
+  geom_density(adjust=1, color="red", size=1) +  # Adding the density curve
+  labs(x = "TotalEV", y = "Density", title = "Histogram with Density Curve of TotalEV") +
+  theme_minimal()
+```
+
+1. **Right-Skewed Distribution**: The histogram shows that most of the data points for the variable `TotalEV` are clustered towards the left side of the graph, with a long tail extending to the right. This indicates a right-skewed (or positively skewed) distribution.
+
+2. **Majority of Low Values**: The height of the bars in the histogram indicates that the majority of the values for `TotalEV` are low, with a high frequency of values close to zero.
+
+3. **Few High Values**: There are very few high values, as seen by the presence of bars to the right of the graph that are much shorter in height. This is typical of a skewed distribution where a small number of observations are much larger than the rest.
+
+4. **Possible Outliers**: The long tail to the right suggests there could be outliers or extreme values in the `TotalEV` data. These could be unusually high values relative to the rest of the data.
+
+5. **Density Curve**: The KDE line tries to estimate a smooth distribution of the data. It peaks where the histogram bars are the tallest, reflecting the concentration of data points. The long right tail of the KDE suggests that while there are few large values, they extend quite far from the most frequent values.
+
+6. **Central Tendency**: Given the skewness of the data, the mean of `TotalEV` will be higher than the median, which is also suggested by the previous statistical summary provided, where the mean is greater than the median.
+
+Essentially, the behavior of the response variable has prompted us to adopt a different perspective, as it is clear from the plot above that the distribution might not be normal. Therefore, it is necessary to further investigate the explanatory variables, fit a model, and then evaluate its statistical significance.
+
+We will check how different explanatory variables have an effect with our response variable using scatter plots.
+
+```{r explorationscatter}
+# Load necessary libraries
+library(ggplot2)
+library(tidyr)
+
+
+# Transform data from wide to long format
+data_long <- pivot_longer(data, cols = -c(TotalEV, FSA), names_to = "Feature", values_to = "Value")
+
+# Plot
+ggplot(data_long, aes(x = Value, y = TotalEV)) +
+  geom_point() +
+  facet_wrap(~Feature, scales = "free") +
+  theme_light() +
+  labs(x = "Feature Value", y = "Total EV", title = "Scatterplots of TotalEV vs. All Features")
+
+```
+
+From the image of the scatter plots provided, here are some insights we could infer:
+
+1. **Income and TotalEV Relationship**: The scatter plots generally indicate that there is a positive relationship between median full-time income, median total household income, and the proportion of income above $100k and $40k, with the 'TotalEV' metric. This suggests that as income increases, the 'TotalEV' also tends to be higher.
+
+2. **Concentration of Categories**: For all the plots, the 'Low' and 'Medium' TotalEV categories seem to be more densely packed and primarily found in the lower range of the respective income metrics. The 'High' TotalEV category points, while less frequent, appear across a wider range of income values but tend to cluster more towards the higher end of the income metrics.
+
+3. **Senior Management Occupation**: For the scatter plot with 'occup_cat_snr_mgmt' (senior management occupation), it looks like the higher the percentage of individuals in senior management, the higher the 'TotalEV'. However, there's a lot of overlap between the 'Low' and 'Medium' categories.
+
+4. **Business and Finance Occupation**: Similar to senior management, the 'occup_cat_busfin' (business and finance occupation) scatter plot shows that areas with a higher percentage in these occupations might have higher 'TotalEV', but again with significant overlap in 'Low' and 'Medium' categories.
+
+5. **Real Estate Occupation**: The 'occup_ind_realestate' scatter plot suggests a clear correlation with 'TotalEV' compared to full-time and household income, with a relatively even spread across the 'TotalEV' categories, although still with a tendency for higher 'TotalEV' at higher percentages in real estate occupations.
+
+6. **Work from Home**: The 'work_loc_home' plot is interesting; it shows a concentration of 'High' TotalEV values at the lower range of the 'work_loc_home' metric. This could indicate that the ability to work from home is not as strongly associated with higher 'TotalEV' as the other financial metrics.
+
+7. **Outliers**: There are a few outlier points with very high 'TotalEV' values across the plots. These outliers could represent specific areas or circumstances where 'TotalEV' is particularly high and are worth investigating further.
+
+8. **Data Spread**: There's a notable spread of the 'TotalEV' values at higher income levels in several plots, which suggests that while income may be a good indicator of 'TotalEV', there are likely other factors at play influencing the 'TotalEV'.
+
+9. **Real Estate Variables**: Variables such as 'work_loc_home' and 'condo' indicate a relationship with 'TotalEV'. It’s possible that regions with higher work-from-home rates and more condos have higher 'TotalEV', but this might reflect a broader socioeconomic status.
+
+10. **Education Variables**: There are plots for 'school_uni_degree', 'school_hs', 'edu_field_science', 'edu_field_bus_admin', and 'edu_field_health'. These suggest varying degrees of correlation with 'TotalEV'. For instance, areas with higher proportions of university degrees or certain fields of study might have higher 'TotalEV'.
+
+11. **Commuting Variables**: The variables related to commuting, such as 'commute_start_6am', 'commute_start_9am', and 'commute_start_noon', might reflect lifestyle or regional differences that correlate with 'TotalEV'.
+
+12. **Demographic Variables**: Scatter plots for 'indigenous_ppl', 'married_ppl', 'work_loc_foreign', 'can_citizen_ppl', and 'non_citizen_ppl' indicate how different demographic factors might be associated with 'TotalEV'. For example, regions with a higher proportion of married people or Canadian citizens may have different 'TotalEV' profiles.
+
+13. **Distribution of TotalEV Categories**: The distribution of 'Low', 'Medium', and 'High' TotalEV categories varies across different variables, indicating complex socioeconomic factors at play.
+
+14. **Density and Clustering**: There is a noticeable density of data points in certain ranges for each variable, with clustering around certain trends. This could inform targeted analyses or interventions.
+
+These plots could serve as a basis for further analysis, such as looking into what makes the 'TotalEV' areas unique or understanding the role of occupation type in 'TotalEV'. It's also evident that income is an important but not sole factor in determining 'TotalEV', pointing to the multifaceted nature of this metric.
+
+### Research Question 1
+
+We will begin by fitting a GLM to our data firstly because the Generalized Linear Model (GLM) is a way to make sense of data and relationships between variables in a more flexible way compared to traditional linear models. 
+
+```{r glm}
+data$TotalEV <- ceiling(data$TotalEV)
+data$TotalEV
+# Fit a GLM with a Poisson distribution
+glm_poisson_model <- glm(TotalEV ~ med_fulltime_income + income_100k_up + 
+                           med_total_household_income + income_40k + 
+                           occup_cat_snr_mgmt + occup_cat_busfin + 
+                           occup_ind_realestate + work_loc_home + 
+                           work_loc_workplace + work_loc_notfixed + 
+                           school_uni_degree + school_hs + 
+                           commute_start_noon + edu_field_science + 
+                           edu_field_bus_admin + edu_field_health + 
+                           edu_field_pers_protect_transp + commute_transp_carpass + 
+                           commute_start_6am + commute_start_9am + 
+                           condo + worktype_selfemp + indigenous_ppl + 
+                           married_ppl + work_loc_foreign + 
+                           can_citizen_ppl + non_citizen_ppl, 
+                         data = data, family = poisson())
+
+# Summary of the model
+summary(glm_poisson_model)
+
+#Residual plots
+# Residuals vs Fitted Values
+plot(glm_poisson_model$fitted.values, residuals(glm_poisson_model, type = "pearson"),
+     xlab = "Fitted Values", ylab = "Pearson Residuals",
+     main = "Residuals vs Fitted Values")
+
+# Predicted vs Actual Values
+predicted_values <- predict(glm_poisson_model, type = "response")
+actual_values <- data$TotalEV
+
+plot(actual_values, predicted_values,
+     xlab = "Actual Values", ylab = "Predicted Values",
+     main = "Predicted vs Actual Values")
+
+# If necessary, install the coefplot package
+if (!require("coefplot")) install.packages("coefplot")
+library(coefplot)
+
+# Plotting model coefficients
+coefplot(glm_poisson_model)
+
+```
+
+The residual plots we've provided offer valuable insights:
+
+1. **Residuals vs Fitted Values Plot**: Ideally, in this plot, we'd want to see a random scatter of points with no discernible pattern, and the residuals roughly forming a horizontal band around the zero line. The clear pattern in our plot, with residuals increasing as the fitted values increase, might indicate a systematic variation that's not captured by the model. This is a typical sign of overdispersion or perhaps that the mean-variance relationship assumed by the Poisson model does not hold.
+
+2. **Predicted vs Actual Values Plot**: The predicted values seem to be underestimating the actual values, especially as the actual values increase. This further indicates that the Poisson model might not be the correct model for our data, as it appears unable to capture the variance adequately, which seems to be increasing with the mean.
+
+3. **Coefficient Plot**: This plot indicates the estimated effect sizes and their confidence intervals. The width of the confidence intervals indicates the precision of the estimates. A narrow interval means more precision, whereas a wide interval indicates less precision. Some variables have wide confidence intervals, which may be a result of overdispersion affecting the standard errors of the estimates.
+
+Considering the evidence from the model summary and the diagnostic plots, it seems likely that the Poisson model is not adequately fitting our data due to overdispersion. The model is likely underestimating the variance, leading to too narrow confidence intervals and p-values that might be too optimistic.
+
+Given these findings, it would be reasonable to consider alternative models that can account for overdispersion, such as:
+
+- **Quasi-Poisson GLM**: This model adjusts for overdispersion by estimating a dispersion parameter from the data, which is used to correct standard errors. It is a quick fix that can be appropriate if the overdispersion is not severe.
+  
+- **Negative Binomial GLM**: This model has an additional parameter to explicitly model the overdispersion. It's generally more flexible and is recommended when there's strong evidence of overdispersion.
+
+Trying both models and comparing their AIC values and diagnostic plots would be a good approach. Lower AIC values indicate better model fit when comparing models that use the same dataset. The choice between these models could also depend on the nature of the data and the underlying processes we're trying to model.
+
+
+```{r glmquasi}
+# Fit a GLM with a Quasi Poisson distribution
+glm_quasi_poisson_model <- glm(TotalEV ~ med_fulltime_income + income_100k_up + 
+                           med_total_household_income + income_40k + 
+                           occup_cat_snr_mgmt + occup_cat_busfin + 
+                           occup_ind_realestate + work_loc_home + 
+                           work_loc_workplace + work_loc_notfixed + 
+                           school_uni_degree + school_hs + 
+                           commute_start_noon + edu_field_science + 
+                           edu_field_bus_admin + edu_field_health + 
+                           edu_field_pers_protect_transp + commute_transp_carpass + 
+                           commute_start_6am + commute_start_9am + 
+                           condo + worktype_selfemp + indigenous_ppl + 
+                           married_ppl + work_loc_foreign + 
+                           can_citizen_ppl + non_citizen_ppl, 
+                         data = data, family = quasipoisson())
+
+# Summary of the model
+summary(glm_quasi_poisson_model)
+
+#Residual plots
+# Residuals vs Fitted Values
+plot(glm_quasi_poisson_model$fitted.values, residuals(glm_quasi_poisson_model, type = "pearson"),
+     xlab = "Fitted Values", ylab = "Pearson Residuals",
+     main = "Residuals vs Fitted Values")
+
+# Predicted vs Actual Values
+predicted_values <- predict(glm_quasi_poisson_model, type = "response")
+actual_values <- data$TotalEV
+
+plot(actual_values, predicted_values,
+     xlab = "Actual Values", ylab = "Predicted Values",
+     main = "Predicted vs Actual Values")
+
+# If necessary, install the coefplot package
+if (!require("coefplot")) install.packages("coefplot")
+library(coefplot)
+
+# Plotting model coefficients
+coefplot(glm_quasi_poisson_model)
+
+```
+
+The residual plots for the Quasi-Poisson model give us additional information on the model fit:
+
+1. **Residuals vs Fitted Values Plot**: We still observe a pattern where residuals increase with the fitted values, indicating that the variance of the residuals is not constant and suggesting that the mean-variance relationship is not adequately captured by the Quasi-Poisson model. This pattern is a sign of overdispersion.
+
+2. **Predicted vs Actual Values Plot**: There is a clear deviation from the line of equality (where predicted values equal actual values), especially for higher actual values. This indicates that the model is underpredicting for higher values of the response variable, which is another sign that the Poisson or Quasi-Poisson assumption might not be appropriate.
+
+3. **Coefficient Plot**: The coefficient plot shows point estimates and confidence intervals for each of the model's coefficients. The widths of the confidence intervals vary, but some are quite wide, which suggests uncertainty in those estimates. The Quasi-Poisson model attempts to adjust the standard errors to account for overdispersion, but this does not necessarily improve the prediction accuracy.
+
+Given these observations, the Quasi-Poisson model does not seem to be a good fit for the data. The patterns in the residuals and the inability of the model to predict higher values of the response variable accurately suggest that a model capable of handling overdispersion more explicitly could perform better.
+
+A Negative Binomial GLM is a good alternative to try because it introduces an additional parameter to directly model overdispersion. The Negative Binomial model is particularly useful when the counts have an extra-Poisson variation, which seems to be the case here. It is often used for count data where the variance exceeds the mean.
+
+In conclusion, considering the overdispersion evident in the residual plots, it would be advisable to fit a Negative Binomial GLM to the data and compare the model diagnostics, including the residual plots and the AIC (if computable), with those from the Poisson and Quasi-Poisson models. The Negative Binomial GLM may provide a better fit and more reliable inference for our dataset.
+
+```{r negativebinomial}
+# If necessary, install the MASS package
+if (!require("MASS")) install.packages("MASS")
+library(MASS)
+
+# Fit a GLM with a Negative Binomial distribution
+glm_nb_model <- glm.nb(TotalEV ~ med_fulltime_income + income_100k_up + 
+                           med_total_household_income + income_40k + 
+                           occup_cat_snr_mgmt + occup_cat_busfin + 
+                           occup_ind_realestate + work_loc_home + 
+                           work_loc_workplace + work_loc_notfixed + 
+                           school_uni_degree + school_hs + 
+                           commute_start_noon + edu_field_science + 
+                           edu_field_bus_admin + edu_field_health + 
+                           edu_field_pers_protect_transp + commute_transp_carpass + 
+                           commute_start_6am + commute_start_9am + 
+                           condo + worktype_selfemp + indigenous_ppl + 
+                           married_ppl + work_loc_foreign + 
+                           can_citizen_ppl + non_citizen_ppl, data = data)
+
+# Summary of the Negative Binomial model
+summary(glm_nb_model)
+
+# Residuals vs Fitted Values Plot for Negative Binomial
+plot(glm_nb_model$fitted.values, residuals(glm_nb_model, type = "pearson"),
+     xlab = "Fitted Values", ylab = "Pearson Residuals",
+     main = "Negative Binomial: Residuals vs Fitted Values")
+
+# Plot 1: Residuals vs Fitted Values
+plot(glm_nb_model$fitted.values, residuals(glm_nb_model, type = "pearson"),
+     xlab = "Fitted Values", ylab = "Pearson Residuals",
+     main = "Negative Binomial GLM: Residuals vs Fitted Values")
+
+# Plot 2: Predicted vs Actual Values
+predicted_values <- predict(glm_nb_model, type = "response")
+actual_values <- data$TotalEV
+
+plot(actual_values, predicted_values,
+     xlab = "Actual Values", ylab = "Predicted Values",
+     main = "Negative Binomial GLM: Predicted vs Actual Values")
+
+library(coefplot)
+
+# Plotting model coefficients
+coefplot(glm_nb_model)
+
+```
+
+The residual plots for the Negative Binomial GLM provide the following insights:
+
+1. **Residuals vs Fitted Values Plot**: The plot shows an increasing trend in the magnitude of residuals as the fitted values increase. While the presence of overdispersion is much better accounted for in a Negative Binomial model than in a Poisson model, the pattern here indicates that there might still be some systematic variation not captured by the model. This could be due to several reasons, such as omitted variables that are important predictors, or it could suggest that the relationship between the predictors and the response variable might not be entirely linear.
+
+2. **Predicted vs Actual Values Plot**: Similar to the Residuals vs Fitted plot, we see that the model tends to underpredict the actual values as they increase. There is a clear trend where the model does not capture the full range of the actual data, particularly for higher value responses. The points do not scatter randomly around the line of equality (where predicted values would equal actual values).
+
+
+```{r selectfeatures}
+# # Function to calculate percentage change and IRR
+# calculate_effect_size <- function(coefficient) {
+#   percent_change <- (1 - exp(coefficient)) * 100
+#   irr <- exp(coefficient)
+#   return(c(percent_change = percent_change, irr = irr))
+# }
+# 
+# # Features based on the information provided (replace if necessary)
+# features <- c("med_fulltime_income", "income_100k_up", "med_total_household_income", 
+#               "income_40k", "occup_cat_snr_mgmt", "occup_cat_busfin", #"occup_ind_realestate",
+#               "work_loc_home", "work_loc_workplace", "work_loc_notfixed", #"school_uni_degree",
+#               "school_hs", "commute_start_noon", "edu_field_science", #"edu_field_bus_admin",
+#               "edu_field_pers_protect_transp", "commute_transp_carpass", #"commute_start_6am",
+#               "commute_start_9am", "condo", "worktype_selfemp", "married_ppl",
+#               "can_citizen_ppl", "non_citizen_ppl")
+# 
+# # Assuming our model is stored in the object 'model'
+# # Extract coefficients and standard errors
+# coefficients <- coef(glm_nb_model)[names(coef(glm_nb_model)) %in% features]
+# std_errors <- summary(glm_nb_model)$coefficients[ #,2][names(summary(glm_nb_model)$coefficients)[ ,1] %in% features]
+# 
+# features
+# 
+# # Calculate effect size for each feature
+# effect_sizes <- lapply(coefficients, calculate_effect_size)
+# names(effect_sizes) <- features
+# 
+# # Print results for significant features (adjust p-value threshold as needed)
+# cat("Significant Features (p-value < 0.05):\n")
+# significant_features <- features[summary(glm_nb_model)$coefficients[,4] < 0.05]
+# if (length(significant_features) > 0) {
+#   for (feature in significant_features) {
+#     cat(paste0("* ", feature, ": \n"), sep="")
+#     cat(paste0("  * Percent Change: ", round(effect_sizes[[feature]][1], 2), "%\n"), #sep="")
+#     cat(paste0("  * Incidence Rate Ratio (IRR): ", round(effect_sizes[[feature]][2], 2), "\n"), sep="")
+# 
+#   }
+# } else {
+#   cat("No significant features found.\n")
+# }
+# 
+# # Identify most influential features based on absolute percentage change
+# most_influential <- features[abs(effect_sizes) %%=%% "percent_change" == #max(abs(unlist(effect_sizes %%=%% "percent_change")))]
+# 
+# cat("\nMost Influential Features (by absolute percentage change):\n")
+# cat(paste(most_influential, collapse = ", "))
+# 
+# 
+# # Check for missing coefficients
+# summary(glm_nb_model)
+# 
+# # Remove features with missing coefficients (optional)
+# significant_features <- significant_features[!(is.na(coef(glm_nb_model)[significant_features]))]
+# 
+# if (length(significant_features) > 0) {
+#   for (feature in significant_features) {
+#     # Check for non-numeric values (e.g., NA)
+#     if (!is.numeric(effect_sizes[[feature]][1])) {
+#       cat("WARNING: Missing effect size for", feature, "\n")
+#       next  # Skip to the next iteration
+#     }
+#     cat(paste0("* ", feature, ": \n"), sep="")
+#     cat(paste0("  * Percent Change: ", round(effect_sizes[[feature]][1], 2), "%\n"), sep="")
+#     cat(paste0("  * Incidence Rate Ratio (IRR): ", round(effect_sizes[[feature]][2], 2), "\n"), sep="")
+#   }
+# } else {
+#   cat("No significant features found.\n")
+# }
+
+
+model_summary <- summary(glm_nb_model)
+std_coefficients <- model_summary$coefficients[, "z value"]
+
+
+# Extract p-values
+p_values <- model_summary$coefficients[, "Pr(>|z|)"]
+
+# Filter for significant features
+significant_std_coefficients <- std_coefficients[p_values < 0.05]
+
+# Get the names of the top 5 significant features by absolute z-value
+top_significant_features <- sort(abs(significant_std_coefficients), decreasing = TRUE)[1:5]
+top_significant_feature_names <- names(top_significant_features)
+
+# Print the top 5 significant features and their standardized coefficients
+cat("Top 5 most influential significant features based on the absolute z values:\n")
+for (feature_name in top_significant_feature_names) {
+  cat(paste0(feature_name, ": ", round(significant_std_coefficients[feature_name], 2)), "\n")
+}
+```
+
+
+```{r irr}
+# Get model's coefficients
+coefficients <- coef(glm_nb_model)
+
+# Calculate Incidence Rate Ratios (IRR) by exponentiating the coefficients
+irr <- exp(coefficients)
+
+# Sort features by the magnitude of their IRR (from most to least influential) and get top 5
+top_features <- sort(irr, decreasing = TRUE)[1:5]
+
+# Print the top 5 features and their IRR
+cat("Top 5 features by their influence on TotalEV (Incidence Rate Ratios):\n")
+print(top_features)
+```
+
+Our goal in the first research question is to understand the strength and direction of the effect of predictors on the response variable, IRR is more appropriate because it gives a multiplicative effect size.
+
+We have used the IRR from the GLM Model with a negative binomial distribution to understand and communicate the effect size and direction of the predictors here. The occupation, commute start time and the mode of commute and the education field play an important role in the Total Electric Vehicle count from our findings.
+
+
+
+### Research Question 2
+
+
+```{r loading libraries}
+set.seed(1234)
+library(sf)
+library(ggplot2)
+library(AER)
+library(MASS)
+library(sfdep)
+library(spdep)
+library(tidyverse)
+library(dplyr)
+
+
+
+```
+
+```{r loading data}
+
+# import shape file for Canada
+canada <- st_read("lfsa000a21a_e.shp")
+
+# Subset to get only Ontario
+ontario <- canada[canada$PRNAME == "Ontario", ]
+
+# get charging stations in ontario
+charging_stations <- read.csv('fuel_stations.csv')
+
+# charging stations as coordinates
+charging_stations_coords <- st_as_sf(charging_stations, coords = c("Longitude", "Latitude"), crs = 4326)
+
+# load data with ev counts and charging stations
+data_with_ev_counts_stations <- read.csv('electric_vehicles.csv')
+
+# data new
+data_new <- read.csv('data_new.csv')
+
+# subset with only station count and fsa
+data_new <- data_new[, c("FSA", "CountOfEVStations")]
+
+# ontario data
+ontario_data <- merge(ontario, data_with_ev_counts_stations, by.x = "CFSAUID", by.y = "FSA", all.x = TRUE)
+ontario_data <- merge(ontario_data, data_new, by.x = "CFSAUID", by.y = "FSA", all.x = TRUE)
+
+# Replacing NA with 0
+ontario_data$TotalEV[is.na(ontario_data$TotalEV)] <- 0
+ontario_data$CountOfEVStations[is.na(ontario_data$CountOfEVStations)] <- 0
+
+
+
+```
+```{r investigating distributions}
+# histogram of counts of ev vehicles
+hist(ontario_data$TotalEV,
+     main = "Histogram of Total Electric Vehicles",
+     xlab = "Total Electric Vehicles",
+     col = "blue",
+     border = "white")
+
+# ev count data seems poisson distributed
+
+hist(ontario_data$CountOfEVStations,
+     main = "Histogram of Electric Vehicle Stations count",
+     xlab = "Total Electric Vehicle Stations",
+     col = "blue",
+     border = "white")
+
+# ev station count data also seems poisson distributed
+
+# checking for overdispersion
+mean(ontario_data$TotalEV)
+var(ontario_data$TotalEV)
+
+# variance far exceeds mean. suggests overdispersion. thus may not be poisson distributed
+# as assumed
+
+
+```
+```{r plotting maps}
+ggplot(data = ontario_data) +
+  geom_sf(aes(fill = TotalEV), color = NA) + # Fill based on EV_Count
+  scale_fill_viridis_c(option = "plasma", direction = -1, name = "EV Count") + # Use a color scale
+  ggtitle("Heatmap of EV Counts by FSA in Ontario") +
+  theme_minimal() +
+  coord_sf() # Use coord_sf to maintain aspect ratio
+
+p = ggplot(data = ontario_data) +
+  geom_sf(aes(fill = TotalEV), color = NA) + # Fill based on EV_Count
+  scale_fill_viridis_c(option = "plasma", direction = -1, name = "EV Count") + # Use a color scale
+  ggtitle("Heatmap of EV Counts by FSA in Ontario with Charging Stations") +
+  theme_minimal() +
+  coord_sf() # Use coord_sf to maintain aspect ratio
+
+p + geom_sf(data = charging_stations_coords, inherit.aes = FALSE, color = "black", size =0.5, alpha = 0.7)
+
+```
+
+```{r fitting poisson glm}
+# trying the Poisson either way
+M1<-glm(TotalEV~CountOfEVStations,family=poisson,data=ontario_data)
+#summary(M1) 
+#plot(M1)
+
+# Perform the dispersion test
+#disp_test <- dispersiontest(M1)
+
+# Print the test result
+#print(disp_test)
+
+# after dispersion test on poisson model reveals overdispersion in the model
+
+# trying a negative binomial model instead
+M2 <- glm.nb(TotalEV~CountOfEVStations, data=ontario_data)
+summary(M2)
+plot(M2)
+
+```
+```{r checking negative binomial assumptions}
+llneg <- logLik(M2)
+llp <- logLik(M1)
+llstatistic <- 2 * (llneg - llp)
+p_value <- pchisq(llstatistic, df=1, lower.tail=FALSE)
+p_value
+```
+
+```{r hotspot analysis}
+# visualize ev station count across fsa
+ggplot(data = ontario_data) +
+  geom_sf(aes(fill = TotalEV), color = NA) + # Fill based on EV_Count
+  scale_fill_viridis_c(option = "plasma", direction = -1, name = "EV Count") + # Use a color scale
+  ggtitle("Heatmap of EV Counts by FSA in Ontario") +
+  theme_minimal() +
+  coord_sf() # Use coord_sf to maintain aspect ratio
+
+```
+
+```{r check empty neighbor sets}
+# create a neighbor list based on queen contiguity
+list_nb <- poly2nb(ontario_data, queen = TRUE)
+```
+
+```{r}
+empty_nb <- which(card(list_nb) == 0)
+empty_nb
+```
+```{r global G Test}
+# identify neighbors with queen contiguity
+ev_nb <- poly2nb(ontario_data, queen = TRUE)
+
+ev_w_binary <- nb2listw(ev_nb, style="B")
+
+ev_lag <- lag.listw(ev_w_binary, ontario_data$TotalEV)
+```
+
+```{r}
+globalG.test(ontario_data$TotalEV, ev_w_binary)
+```
+
+```{r local Gi Test}
+ev_nbs <- ontario_data |>
+  mutate(
+    nb = st_contiguity(geometry),
+    wt = st_weights(nb),
+    ev_lag = st_lag(TotalEV, nb, wt)
+  )
+```
+
+```{r }
+ev_hot_spots <- ev_nbs |>
+  mutate(
+    Gi = local_g_perm(TotalEV, nb, wt, nsim=999)
+  ) |>
+  unnest(Gi)
+```
+
+```{r}
+ev_hot_spots |>
+  ggplot((aes(fill = gi))) +
+  geom_sf(color="black", lwd=0.15) +
+  scale_fill_gradient2()
+```
+
+```{r}
+ev_hot_spots |> 
+  # with the columns 'gi' and 'p_folded_sim"
+  # 'p_folded_sim' is the p-value of a folded permutation test
+  dplyr::select(gi, p_folded_sim) |> 
+  mutate(
+    # Add a new column called "classification"
+    classification = case_when(
+      # Classify based on the following criteria:
+      gi > 0 & p_folded_sim <= 0.01 ~ "Very hot",
+      gi > 0 & p_folded_sim <= 0.05 ~ "Hot",
+      gi > 0 & p_folded_sim <= 0.1 ~ "Somewhat hot",
+      gi < 0 & p_folded_sim <= 0.01 ~ "Very cold",
+      gi < 0 & p_folded_sim <= 0.05 ~ "Cold",
+      gi < 0 & p_folded_sim <= 0.1 ~ "Somewhat cold",
+      TRUE ~ "Insignificant"
+    ),
+    # Convert 'classification' into a factor for easier plotting
+    classification = factor(
+      classification,
+      levels = c("Very hot", "Hot", "Somewhat hot",
+                 "Insignificant",
+                 "Somewhat cold", "Cold", "Very cold")
+    )
+  ) |> 
+  # Visualize the results with ggplot2
+  ggplot(aes(fill = classification)) +
+  geom_sf(color = NA, lwd = 0.1) +
+  scale_fill_brewer(type = "div", palette = 5) +
+  theme_void() +
+  labs(
+    fill = "Hot Spot Classification",
+    title = "EV Counts Hot Spots in Ontario"
+  )
+```
+
+### Research Question 3
+```{r}
+library(tidyverse)
+library(readr)
+library(caret)
+library(randomForest)
+library(rpart)
+
+# Load the dataset
+data_ev <- read_csv("./data_ev.csv", show_col_types = FALSE)
+data_ev <- data_ev[,-1] # Removes the first column
+
+# Check the first few rows of the dataset
+head(data_ev)
+
+
+
+# Summarize the dataset
+summary(data_ev)
+
+# Reading the dataset and removing the index . the summary describes the varibles and their distribution.
+
+
+```
+
+```{r}
+# Find rows with any NA values
+rows_with_na <- apply(data_ev, 1, function(x) any(is.na(x)))
+
+# Display rows that have at least one NA value
+data_ev_with_na <- data_ev[rows_with_na, ]
+
+#data_ev_with_na$TotalEV <- ceiling(data_ev_with_na$TotalEV)
+
+# Print the rows with NA values
+print(data_ev_with_na)
+```
+
+```{r}
+
+data_ev_clean <- data_ev[complete.cases(data_ev[, -which(names(data_ev) == "TotalEV")]), ]
+
+colSums(is.na(data_ev_clean))
+
+```
+Now, we have completely no null values.
+
+```{r}
+
+data_ev_clean$TotalEV <- as.numeric(as.character(data_ev_clean$TotalEV))
+
+#data_ev_clean$TotalEV <- ceiling(data_ev_clean$TotalEV)
+
+# EDA: Distribution of TOTALEV
+hist(data_ev_clean$TotalEV, main = "Distribution of TotalEVs", xlab = "TotalEVs")
+
+# Boxplot for TOTALEV to check for outliers
+boxplot(data_ev_clean$TotalEV, main = "Boxplot of TotalEVs")
+
+```
+
+```{r}
+
+# Converting 'TOTALEV' into categorical variable 'EVCategory'
+breaks <- quantile(data_ev_clean$TotalEV, probs=c(0, 0.33, 0.67, 1), na.rm = TRUE)
+labels <- c("Low", "Medium", "High")
+data_ev_clean$EVCategory <- cut(data_ev_clean$TotalEV, breaks=breaks, labels=labels, include.lowest = TRUE)
+
+
+# removing FSA and total ev variable
+data_ev_clean <- data_ev_clean[, -which(names(data_ev_clean) %in% c("TotalEV", "FSA"))]
+
+
+# Splitting the dataset into training and testing sets
+set.seed(123)
+indexes <- createDataPartition(data_ev_clean$EVCategory, p=0.7, list=FALSE)
+trainData <- data_ev_clean[indexes, ]
+testData <- data_ev_clean[-indexes, ]
+
+```
+
+```{r}
+#install.packages("caret")
+
+library(caret)
+library(randomForest)
+
+set.seed(123) # For reproducibility
+
+ctrl <- caret::trainControl(method = "cv", number = 10)
+
+rf_model <- caret::train(EVCategory ~ ., 
+                         data = trainData, 
+                         method = "rf",
+                         trControl = ctrl,
+                         tuneLength = 5)
+
+print(rf_model)
+
+predictions <- predict(rf_model, newdata = testData)
+confusionMatrix(predictions, testData$EVCategory)
+
+
+
+
+```
+
+
+
+```{r}
+# Making predictions on the test set
+predictions <- predict(rf_model, testData)
+
+# Calculate the accuracy
+accuracy <- confusionMatrix(predictions, testData$EVCategory)
+print(accuracy$overall["Accuracy"])
+
+importance <- varImp(rf_model, scale = FALSE)
+
+# Print the variable importance
+print(importance)
+
+# Plotting variable importance
+plot(importance)
+```
+
+```{r}
+#install.packages("xgboost")
+
+# Install packages if you haven't already
+# install.packages("xgboost")
+# install.packages("caret")
+
+library(xgboost)
+library(caret)
+library(Matrix) # For sparse matrix conversion, which is efficient for xgboost
+
+# Assuming you have a trainData and testData split
+
+# Prepare the data for XGBoost
+train_matrix <- sparse.model.matrix(EVCategory ~ . - 1, data = trainData)
+dtrain <- xgb.DMatrix(data = train_matrix, label = as.numeric(trainData$EVCategory)-1) # Assuming EVCategory is a factor
+
+test_matrix <- sparse.model.matrix(EVCategory ~ . - 1, data = testData)
+dtest <- xgb.DMatrix(data = test_matrix)
+
+# Parameters for XGBoost
+params <- list(
+  booster = "gbtree",
+  objective = "multi:softprob",
+  num_class = length(unique(trainData$EVCategory)), # Number of classes
+  eval_metric = "mlogloss", # Multiclass logloss
+  eta = 0.1,
+  max_depth = 6
+)
+
+# Train the model
+nrounds <- 100 # Number of boosting rounds
+xgb_model <- xgb.train(params = params, data = dtrain, nrounds = nrounds)
+
+# Predictions
+pred_probs <- predict(xgb_model, dtest)
+pred_classes <- max.col(matrix(pred_probs, ncol = length(unique(trainData$EVCategory)), byrow = TRUE))-1
+
+# Convert numeric predictions back to factor levels
+pred_classes_factor <- factor(pred_classes, levels = 0:(length(unique(trainData$EVCategory))-1), labels = levels(trainData$EVCategory))
+
+# Evaluating the model
+conf_mat <- confusionMatrix(pred_classes_factor, testData$EVCategory)
+print(conf_mat)
+
+
+```
+
+
+
+```{r}
+accuracy <- conf_mat$overall['Accuracy']
+print(accuracy)
+
+# Feature importance for XGBoost model
+importance_matrix <- xgb.importance(feature_names = colnames(train_matrix), model = xgb_model)
+
+# Print the feature importance
+print(importance_matrix)
+
+# Plot the feature importance
+xgb.plot.importance(importance_matrix)
+
+```
+
+```{r}
+
+
+# Load necessary libraries
+library(mlr)
+library(randomForest)
+library(xgboost)
+
+# Define the classification task
+task <- makeClassifTask(data = trainData, target = "EVCategory")
+
+# Define base learners
+learners <- list(
+  makeLearner("classif.randomForest", id = "rf"),
+  makeLearner("classif.xgboost", id = "xgb")
+)
+
+# Use a Random Forest classifier as the super learner
+# This is known to support multiclass classification
+superLearner <- makeLearner("classif.randomForest", id = "superLearner")
+
+# Create the stacked learner
+stackedLearner <- makeStackedLearner(base.learners = learners, super.learner = superLearner, method = "stack.cv", predict.type = "response")
+
+# Train the stacked model
+model_boost <- train(stackedLearner, task)
+
+pred <- predict(model_boost, newdata = testData) # Corrected, testData should be a data.frame
+
+# If you have the true labels available for testData, you can evaluate the model's performance
+true_labels <- testData$EVCategory # Assuming the true labels are stored in testData
+
+# Convert predictions to a factor or appropriate format if needed
+predicted_labels <- as.factor(pred$data$response)
+
+# Calculate accuracy or other performance metrics
+library(caret)
+conf_mat_boost <- confusionMatrix(predicted_labels, true_labels)
+print(conf_mat_boost)
+
+```
+
+
+
+```{r}
+accuracy <- conf_mat_boost$overall['Accuracy']
+print(accuracy)
+
+
+
+
+```
+
+
+## G Results
+
+------------------------------------------------------------------------
+
+
+### Exploratory Data Analysis:
+
+
+Our analysis began by closely examining the dataset to discern patterns and relationships, employing scatterplots to illuminate the interactions between the independent variables and the response variable `TotalEV`. These visual examinations hinted at a positive correlation between income-related variables and `TotalEV`, suggesting that areas with higher incomes tended to also exhibit increased `TotalEV` values. The plots revealed a densely packed cluster of data points at lower income levels, with a noticeable spread at higher income tiers, indicating income’s significant but not exclusive influence on `TotalEV`.
+
+Subsequent scrutiny of occupational variables, like senior management and business and finance categories, revealed a potential correlation with `TotalEV`, albeit with overlapping categories that suggest additional contributing factors. The predictive capacity of demographic and real estate variables, such as marital status and the proportion of people working from home, surfaced in the plots as nuanced indicators that warrant deeper investigation to unravel the complex socio-economic web influencing `TotalEV`.  
+
+
+![Data Flow pipeline](evcountfsa.png)
+
+In the first map, the color gradient from yellow to dark purple indicates low to high densities of EV counts, respectively. Areas with the highest concentrations of electric vehicles are depicted in darker shades. There is a significant geographic variation in EV distribution across Ontario. The southern part of the province, shows the highest concentration of electric vehicles. This area includes major urban centers, which from the map seems to have higher adoption rates for EVs due to better infrastructure and greater environmental awareness. The vast majority of northern Ontario shows a very low density of EVs which could be due to a variety of factors such as less developed charging infrastructure, lower population density, or different transportation needs and preferences.  
+
+![Data Flow pipeline](evcountfsastation.png)
+
+The second map overlays black dots to indicate the locations of individual EV stations. There appears to be a strong correlation between the presence of EV charging stations and higher counts of electric vehicles, particularly in southern Ontario. The dense clusters of black dots coincide with the darker areas on the heatmap suggesting the the availability of charging infrastructure is a likely factor in EV adoption. The visualization supports the hypothesis that the presence of charging stations influences the adoption of electric vehicles. For policymakers and businesses, this data could justify investments in charging infrastructure in areas that are currently underserved to promote EV adoption.  
+
+### Data Normalization:
+
+
+There are 2,631 characteristics (rows) for each FSA, resulting in 1,370,751 total rows of interest. We selected 143 characteristics, corresponding to the domains we identified as possibly yielding features from which EV ownership/registration may be predicted, as well as those necessary to normalize other values. After selecting these, the table was transposed to a format with one row per FSA, and each column representing a selected feature. 
+
+The EV and Census Profile datasets were joined on the FSA identifiers, resulting in 517 observations (FSAs present in both data sets) with 147 columns. Four FSAs with very small or no populations were removed. Statistics referring to counts of individual people were divided by the overall population of the area, while those referring to counts of dwellings (homes) were divided by the number of dwellings in the area. The number of registered EVs were divided by the population and multiplied by 10,000 to yield the number of registered EVs per 10,000 people. 
+
+After assembling our data and normalizing it over the population, we ran a simple correlation check between the possible features and the (normalized) TotalEV value. We selected 26 features from across multiple domains with the highest correlations (positive or negative) in their categories. Note that only “med_fulltime_income” would qualify as being particularly high, but other features may still contribute in some ways. 
+ 
+The source data is relatively high-quality, and requires little in the way of cleaning, beyond the normalization we have already done. Missing values only appear to exist for those regions with very small populations; we have removed four FSAs from consideration as a result.
+
+### Research Question 1:
+
+
+In our exploratory analysis of the dataset, we crafted scatter plots which allowed us to visually assess the relationships between the independent variables and the response variable, guiding us toward the appropriate modeling approach. Delving into the distribution of the response variable, histograms provided us with initial insights into its characteristics. Through this process, we determined that a Generalized Linear Model (GLM) was a fitting choice, and after comparing different distribution families, the Negative Binomial distribution emerged as the most suitable, as evidenced by its minimal AIC value compared to the Poisson and Quasi-Poisson distributions. The choice of the Negative Binomial model was further substantiated by its ability to account for overdispersion—a common issue with count data—more effectively than the Poisson model. Additionally, the plots of predicted versus actual values demonstrated the model's capacity to closely estimate the actual data points, affirming its predictive validity, particularly for data points with higher values. Our analysis underscores the value of a meticulous model selection process, with the Negative Binomial GLM proving to be a robust method for handling the nuances of our data.
+
+### Research Question 2:
+
+
+**GLM**  
+A Negative Binomial GLM was fit with the count of EVs as the response and the count of the EV stations as the explanatory variable. The residual diagnostic plot showed no major issues as well as the QQ plot where majority of the data fell on the line.
+For coefficients, the intercept had a value of 5.16845 with a very small standard error and it is statistically significant (indicated by a p-value less than 2e-16 ). This coefficient represents the log count of electric vehicles when the count of EV stations is zero. This roughly translates to about 176 EVs when the count of EV stations is zero. This may be to people owning their private means of charging their electric vehicles and not relying on public charging infrastructure. The coefficient for EV station count is 0.11483, suggesting that for every one-unit increase in the count of Ev stations, the log count of electric vehicles is expected to increase by this amount. This coefficient is also statistically significant (p-value = 1.99e-05) which suggests there is a strong statistical evidence that the number of EV stations is positively associated with the number of electric vehicles.
+
+**Hot Spot Analysis**  
+![Data Flow pipeline](hotspot.png)
+To further validate the EDA we performed hotspot analysis on the counts of EVs across FSAs in Ontario. The hotspot map illustrates the distribution of electric vehicle counts by Forward Sortation Area across Ontario, using color coding to represent areas of varying EV concentration. High concentration areas (very hot spots), depicted in dark red, indicate FSAs with the highest EV counts. These areas seem to be urban centers with greater access to EV infrastructure for EV owners. These regions may also have higher income levels, allowing for greater adoption of EV technology. The areas marked as "Hot" and "Somewhat hot" in lighter red and orange shades, respectively, suggest moderate counts of EVs. These could be suburban areas or smaller towns where there is some infrastructure and interest in EVs, but where certain barriers to full adoption might still exist. White areas denote FSAs where EV counts don't significantly deviate from the average. These areas could have a balanced mix of conditions both favoring and deterring EV adoption. The areas in shades of blue, which show up as "Cold" and "Very cold," suggest low EV counts. This could be due to a lack of infrastructure, lower environmental initiatives, economic barriers, or other factors that might discourage EV ownership. As far as policy implications go, the government could look into providing incentives or support programs, development of charging infrastructure, particularly in "Cold" and "Somewhat cold" areas to boost adoption rates.
+
+### Research Question 3  
+In this phase of our study, we applied Random Forest, a powerful tree-based ensemble learning method, to predict the categorization of electric vehicles (EVs) based on demographic variables. The Random Forest model is particularly well-suited for this task due to its capability to handle high-dimensional data and its robustness against overfitting, which is common in decision tree models. By aggregating the predictions of numerous decision trees, Random Forest improves prediction accuracy and model interpretability.
+
+**Random Forest Model Training and Validation**  
+We utilized the caret package in R for model training and evaluation, setting a seed for reproducibility and specifying a 10-fold cross-validation in the training control settings to assess model performance reliably. The model was trained on the dataset, excluding the FSA and TotalEV variables to prevent data leakage and to focus on demographic factors.
+
+Upon training, the model's performance was evaluated on a test dataset, resulting in an accuracy of approximately **0.7987**. This indicates that the model can correctly predict the EV category (Low, Medium, High) based on demographic variables with a fairly high level of reliability.
+
+**Variable Importance**
+One of the key strengths of Random Forest is its ability to quantify the importance of each variable in making predictions. This feature is invaluable for understanding which demographic factors most significantly influence EV adoption. The varImp function was used to derive the importance scores for all demographic variables in the dataset, scaled by the increase in prediction accuracy they provide.
+
+The results revealed that the variable **work_loc_home** (representing the proportion of individuals working from home) is the most influential predictor of EV categories, followed by occup_cat_snr_mgmt (the proportion of individuals in senior management occupations), and income_100k_up (the proportion of individuals with income over 100k). These findings suggest that areas with a higher proportion of remote workers, senior management professionals, and high-income earners are more likely to have a higher category of EV adoption.
+
+This analysis not only sheds light on the demographic characteristics associated with higher EV adoption rates but also provides valuable insights for policymakers and stakeholders interested in promoting EV usage. By understanding the demographic variables that most strongly predict EV adoption, targeted strategies and incentives can be developed to encourage EV uptake in specific communities or demographic groups.
+
+The 5 utmost important variables according to random forest
+
+work_loc_home			
+occup_cat_snr_mgmt		
+income_100k_up		
+married_ppl			
+income_40k
+
+**XGBoost Model Training and Evaluation**
+To leverage the capabilities of XGBoost within the R environment, we prepared our dataset by converting it into a sparse matrix format, optimizing for efficiency given the algorithm's handling of sparse data. Our model was trained using parameters fine-tuned to balance model complexity and learning rate, aiming for a generalized model with high predictive accuracy.
+
+After training, the model's performance was evaluated on the test dataset, achieving an accuracy of approximately **0.7727**. This result highlights the model's effectiveness in classifying EV categories based on demographic variables, providing a solid foundation for predictive insights.
+
+**Variable Importance Analysis**
+An essential aspect of our analysis involved understanding which demographic variables most significantly influence the classification of EV categories. XGBoost offers a built-in method for assessing feature importance, which we utilized to identify the top predictors in our model.
+
+The analysis revealed that **work_loc_home**, indicating the proportion of people working from home, emerged as the most significant predictor. This variable was followed by married_ppl, income_100k_up, and indigenous_ppl, among others. These findings suggest that lifestyle and socio-economic factors play crucial roles in determining EV adoption levels.
+
+**Ensemble Learning**
+we leveraged the power of ensemble methods by combining Random Forest and XGBoost models through a boosting method. This approach, known for enhancing model performance by aggregating predictions from multiple models, allows for a more robust and accurate predictive framework, particularly in complex classification tasks like ours.
+
+**Ensemble Learning with Boosting**  
+
+We initiated our ensemble strategy by defining base learners - a Random Forest classifier and an XGBoost model - each known for their predictive capabilities in handling structured data. The Random Forest model contributes by capturing complex, nonlinear relationships through multiple decision trees, while the XGBoost model adds gradient boosting capabilities, focusing on optimizing model performance and addressing model bias.
+
+To harmonize these models' strengths, we employed a super learner approach, choosing a Random Forest classifier as the super learner. This choice was strategic, given Random Forest's efficacy in managing multiclass classification problems and its ability to reduce overfitting through its ensemble nature.
+
+**Training and Predictive Accuracy**  
+Upon training the stacked ensemble model on our classification task, which aimed to predict EV adoption categories based on demographic variables, we evaluated its performance on a separate test dataset. The predictions were converted to the appropriate format, and accuracy was calculated, yielding a notable accuracy score of approximately **0.8052**. This result underscores the ensemble model's effectiveness in accurately classifying EV categories, illustrating the added value of combining multiple learning algorithms for enhanced predictive power.  
+
+**Final Implications and Insights From Tree Based Models**
+
+The superior accuracy achieved by the ensemble model underscores the potential of leveraging combined model strengths to tackle complex predictive challenges. This approach not only amplifies the individual models' capabilities but also offers a deeper understanding of the underlying patterns within the data, providing a more nuanced view of the factors driving EV adoption across different demographics.
+
+For policymakers and stakeholders in the EV industry, these insights are invaluable. They highlight the multifaceted nature of EV adoption and the importance of tailored strategies that address specific demographic characteristics. The enhanced predictive accuracy of our ensemble model offers a more reliable basis for decision-making, supporting targeted interventions to promote sustainable transportation.
+
+## H Conclusion  
+The burgeoning electric vehicle (EV) market in Canada, as reflected in the notable increase in EV registrations, marks a paradigm shift towards environmentally conscious transportation. This shift is not only in alignment with Canada's ambitious climate goals but also mirrors the growing public appetite for sustainable vehicle options. Our exploratory data analysis has unearthed a clear positive correlation between the presence of EV charging infrastructure and the uptick in EV adoption, particularly in densely populated urban areas.  
+
+The meticulous application of a Negative Binomial Generalized Linear Model has yielded statistically significant insights, underscoring the importance of EV charging stations in bolstering EV prevalence. The positive association between charging infrastructure and EV counts emphasizes the necessity for strategic policy interventions. Furthermore, the hotspot analysis vividly illustrates the spatial disparity in EV adoption across Ontario, pinpointing potential areas for infrastructural enhancement.  
+
+Policy recommendations emanating from this research should center on bolstering infrastructural development, particularly in areas identified as cold spots, to democratize access to EVs. Incentive programs and educational initiatives may serve to alleviate the barriers to adoption, promoting a widespread shift to EVs. Moreover, future research should aim to dissect the layers of demographic, economic, and behavioral factors influencing this transition, tailoring solutions to the nuanced needs of diverse regions.  
+
+In conclusion, this study confirms that EV adoption in Ontario is not just a function of consumer choice but is intricately linked to the availability of supportive infrastructure. As Canada strides towards its 2035 phase-out goal for gas vehicles, the insights gleaned herein advocate for a concerted effort in infrastructure expansion, public education, and policy innovation. The pursuit of such endeavors is pivotal to catalyze the transition to electric mobility, fostering a sustainable future that resonates with national climate aspirations and the environmental ethos of the Canadian populace.  
+
+## References
+
+------------------------------------------------------------------------
+
+*Data & Software*
+
+Emerging Technologies Office. (2024). Electric Vehicles in Ontario – By Forward Sortation Area—Q4 2023 [dataset]. Ontario Data Catalogue. https://data.ontario.ca/dataset/electric-vehicles-in-ontario-by-forward-sortation-area/resource/dca5bef6-df38-4c45-be73-62e71b243d3d 
+
+ 
+
+Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., Blondel, M., Prettenhofer, P., Weiss, R., Dubourg, V., Vanderplas, J., Passos, A., Cournapeau, D., Brucher, M., Perrot, M., & Duchesnay, É. (2011). Scikit-learn: Machine Learning in Python. Journal of Machine Learning Research, 12(85), 2825–2830. https://jmlr.csail.mit.edu/papers/v12/pedregosa11a.html 
+
+ 
+
+Statistics Canada. (2022, September 21). Census Forward Sortation Area Boundary File, Census year 2021 [shapefile]. https://www150.statcan.gc.ca/n1/en/catalogue/92-179-X 
+
+ 
+
+Statistics Canada. (2022, February 9). Census Profile Downloads, 2021 [dataset]. https://www12.statcan.gc.ca/census-recensement/2021/dp-pd/prof/details/download-telecharger.cfm?Lang=E 
+
+
+*Referenced Works* 
+
+Blair, N. (2024, January). Electric Vehicle Adoption Statistics in Canada. Made in CA. https://madeinca.ca/electric-vehicle-adoption-statistics-canada/
+
+ 
+
+Chen, C. F., de Rubens, G. Z., Noel, L., Kester, J., & Sovacool, B. K. (2020). Assessing the socio-demographic, technical, economic and behavioral factors of Nordic electric vehicle adoption and the influence of vehicle-to-grid preferences. Renewable and Sustainable Energy Reviews, 121, 109692.https://www.sciencedirect.com/science/article/abs/pii/S1364032119308974
+
+ 
+
+Cousins, B. (2023, December). What does 2024 have in store for the EV industry? Bloomberg BNN.https://www.bnnbloomberg.ca/what-does-2024-have-in-store-for-the-ev-industry-1.2014925
+
+ 
+
+Egbue, O., Long, S., & Samaranayake, V. A. (2017). Mass deployment of sustainable transportation: evaluation of factors that influence electric vehicle adoption. Clean Technologies and Environmental Policy, 19, 1927-1939.https://link.springer.com/article/10.1007/s10098-017-1375-4 
+
+
+
+RPubs—R Tutorial: Hotspot Analysis Using Getis Ord Gi. (n.d.). Retrieved April 10, 2024, from https://rpubs.com/heatherleeleary/hotspot_getisOrd_tut
+
+
+
+
+
+
